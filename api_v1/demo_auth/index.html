@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>JWT Auth Demo</title>
+    <script src="https://cdn.jsdelivr.net/npm/alpinejs@3/dist/cdn.min.js" defer></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f0f0f0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+        }
+        .container {
+            background-color: white;
+            padding: 2rem;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            width: 100%;
+            max-width: 400px;
+        }
+        h1 {
+            text-align: center;
+            margin-bottom: 1.5rem;
+            font-size: 1.5rem;
+            color: #333;
+        }
+        h2 {
+            font-size: 1.2rem;
+            margin-bottom: 1rem;
+            color: #333;
+        }
+        .error {
+            background-color: #fee2e2;
+            color: #dc2626;
+            padding: 1rem;
+            border-radius: 4px;
+            margin-bottom: 1rem;
+        }
+        .form-group {
+            margin-bottom: 1rem;
+        }
+        label {
+            display: block;
+            font-size: 0.9rem;
+            color: #555;
+            margin-bottom: 0.5rem;
+        }
+        input {
+            width: 100%;
+            padding: 0.5rem;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            font-size: 1rem;
+        }
+        input:focus {
+            outline: none;
+            border-color: #2563eb;
+            box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.2);
+        }
+        button {
+            width: 100%;
+            padding: 0.75rem;
+            border: none;
+            border-radius: 4px;
+            font-size: 1rem;
+            cursor: pointer;
+            background-color: #2563eb;
+            color: white;
+        }
+        button:hover:not(:disabled) {
+            background-color: #1e40af;
+        }
+        button:disabled {
+            background-color: #93c5fd;
+            cursor: not-allowed;
+        }
+        .logout-btn {
+            background-color: #dc2626;
+        }
+        .logout-btn:hover:not(:disabled) {
+            background-color: #b91c1c;
+        }
+        .user-info {
+            margin-bottom: 1rem;
+        }
+        .user-info p {
+            margin: 0.5rem 0;
+            font-size: 1rem;
+            color: #333;
+        }
+    </style>
+</head>
+<body>
+    <div class="container" x-data="{
+        username: '',
+        password: '',
+        token: localStorage.getItem('access_token') || '',
+        userData: null,
+        error: '',
+        isLoading: false,
+        async login() {
+            this.isLoading = true;
+            this.error = '';
+            try {
+                const response = await fetch('http://127.0.0.1:8000/api/v1/demo-auth/jwt/login', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                    },
+                    body: new URLSearchParams({
+                        username: this.username,
+                        password: this.password,
+                    }),
+                });
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(errorData.detail || 'Login failed');
+                }
+                const data = await response.json();
+                this.token = data.access_token;
+                localStorage.setItem('access_token', this.token);
+                this.username = '';
+                this.password = '';
+            } catch (err) {
+                this.error = err.message;
+            } finally {
+                this.isLoading = false;
+            }
+        },
+        async fetchUserData() {
+            this.isLoading = true;
+            this.error = '';
+            try {
+                const response = await fetch('http://127.0.0.1:8000/api/v1/demo-auth/jwt/users/me/', {
+                    headers: {
+                        'Authorization': `Bearer ${this.token}`,
+                    },
+                });
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(errorData.detail || 'Failed to fetch user data');
+                }
+                const data = await response.json();
+                this.userData = data;
+            } catch (err) {
+                this.error = err.message;
+            } finally {
+                this.isLoading = false;
+            }
+        },
+        logout() {
+            this.token = '';
+            this.userData = null;
+            this.error = '';
+            localStorage.removeItem('access_token');
+        }
+    }">
+        <h1>JWT Auth Demo</h1>
+
+        <template x-if="error">
+            <div class="error" x-text="error"></div>
+        </template>
+
+        <template x-if="!token">
+            <div>
+                <h2>Login</h2>
+                <form @submit.prevent="login">
+                    <div class="form-group">
+                        <label>Username</label>
+                        <input
+                            type="text"
+                            x-model="username"
+                            required
+                        />
+                    </div>
+                    <div class="form-group">
+                        <label>Password</label>
+                        <input
+                            type="password"
+                            x-model="password"
+                            required
+                        />
+                    </div>
+                    <button type="submit" :disabled="isLoading">
+                        <span x-text="isLoading ? 'Logging in...' : 'Login'"></span>
+                    </button>
+                </form>
+            </div>
+        </template>
+
+        <template x-if="token">
+            <div>
+                <h2>User Info</h2>
+                <template x-if="userData">
+                    <div class="user-info">
+                        <p><strong>Username:</strong> <span x-text="userData.username"></span></p>
+                        <p><strong>Email:</strong> <span x-text="userData.email"></span></p>
+                        <p><strong>Logged at:</strong> <span x-text="new Date(userData.logged_at * 1000).toLocaleString()"></span></p>
+                    </div>
+                </template>
+                <template x-if="!userData">
+                    <button @click="fetchUserData" :disabled="isLoading">
+                        <span x-text="isLoading ? 'Fetching...' : 'Get My Info'"></span>
+                    </button>
+                </template>
+                <button class="logout-btn" @click="logout">Logout</button>
+            </div>
+        </template>
+    </div>
+</body>
+</html>
